@@ -15,11 +15,6 @@ import (
 	"nhooyr.io/websocket"
 )
 
-type Client struct {
-	address string
-	ch      chan bool
-}
-
 type subscriber struct {
 	msgs chan []byte
 }
@@ -38,7 +33,6 @@ type ChatServer struct {
 	connCh                  chan *websocket.Conn
 	readyCh                 chan bool
 	pendingConns            []*websocket.Conn
-	availableClients        []Client
 	clients                 map[string]*websocket.Conn
 	chatSessions            map[string]string
 }
@@ -53,7 +47,6 @@ func NewChatServer() *ChatServer {
 		connCh:                  make(chan *websocket.Conn),
 		readyCh:                 make(chan bool, 2),
 		pendingConns:            make([]*websocket.Conn, 0),
-		availableClients:        make([]Client, 0),
 		clients:                 make(map[string]*websocket.Conn),
 		chatSessions:            make(map[string]string),
 	}
@@ -64,7 +57,7 @@ func (cs *ChatServer) addSubscriber(s *subscriber) {
 	cs.subscribers <- s
 }
 
-func (cs *ChatServer) deleteSubscriber(s *subscriber) {
+func (s *subscriber) Close() {
 	close(s.msgs)
 }
 
@@ -179,8 +172,8 @@ func (cs *ChatServer) subscribe(ctx context.Context, w http.ResponseWriter, r *h
 	s := &subscriber{
 		msgs: make(chan []byte, cs.subscriberMessageBuffer),
 	}
+	defer s.Close()
 	cs.addSubscriber(s)
-	defer cs.deleteSubscriber(s)
 
 	c2, err := websocket.Accept(w, r, nil)
 	if err != nil {
